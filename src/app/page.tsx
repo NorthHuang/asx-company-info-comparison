@@ -1,94 +1,146 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import CompanySearch from '@/components/CompanySearch';
-import KeyStatistics from '@/components/KeyStatistics';
-import CompanyInfo from '@/components/CompanyInfo';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import type { AppState } from '@/types';
+import ComparisonTable from '@/components/ComparisonTable';
+import TickerPills from '@/components/TickerPills';
+import type { ComparisonState, TickerItemState } from '@/types';
 import { getCompanyBundle, mapErrorToMessage } from '@/lib/api';
 
-const initialState: AppState = {
+const MAX_TICKERS = 5;
+
+const emptyItem: TickerItemState = {
   loading: false,
   error: '',
   companyData: null,
   quoteData: null,
-  currentTicker: '',
+};
+
+const initialState: ComparisonState = {
+  tickers: [],
+  byTicker: {},
+  inputTicker: '',
 };
 
 export default function Page() {
-  const [state, setState] = useState<AppState>(initialState);
+  const [state, setState] = useState<ComparisonState>(initialState);
+  const [uiError, setUiError] = useState<string>('');
 
-  async function handleSearch(ticker: string) {
+  const anyLoading = useMemo(
+    () => state.tickers.some((t) => state.byTicker[t]?.loading),
+    [state.tickers, state.byTicker]
+  );
+
+  function removeTicker(ticker: string) {
+    setUiError('');
+    setState((s) => {
+      const nextTickers = s.tickers.filter((t) => t !== ticker);
+      const nextBy = { ...s.byTicker };
+      delete nextBy[ticker];
+      return { ...s, tickers: nextTickers, byTicker: nextBy };
+    });
+  }
+
+  async function fetchTicker(ticker: string) {
+    // mark loading for this ticker
     setState((s) => ({
       ...s,
-      loading: true,
-      error: '',
-      currentTicker: ticker,
+      byTicker: {
+        ...s.byTicker,
+        [ticker]: { ...(s.byTicker[ticker] ?? emptyItem), loading: true, error: '' },
+      },
     }));
 
     try {
       const { companyData, quoteData } = await getCompanyBundle(ticker);
       setState((s) => ({
         ...s,
-        loading: false,
-        companyData,
-        quoteData,
+        byTicker: {
+          ...s.byTicker,
+          [ticker]: {
+            loading: false,
+            error: '',
+            companyData,
+            quoteData,
+          },
+        },
       }));
     } catch (err) {
       setState((s) => ({
         ...s,
-        loading: false,
-        companyData: null,
-        quoteData: null,
-        error: mapErrorToMessage(err, ticker),
+        byTicker: {
+          ...s.byTicker,
+          [ticker]: {
+            loading: false,
+            error: mapErrorToMessage(err, ticker),
+            companyData: null,
+            quoteData: null,
+          },
+        },
       }));
     }
   }
 
-  const hasResults = Boolean(state.companyData && state.quoteData);
+  async function handleAddTicker(ticker: string) {
+    setUiError('');
+
+    if (state.tickers.includes(ticker)) {
+      setUiError(`Ticker ${ticker} is already in the comparison.`);
+      return;
+    }
+
+    if (state.tickers.length >= MAX_TICKERS) {
+      setUiError(`You can compare up to ${MAX_TICKERS} tickers.`);
+      return;
+    }
+
+    setState((s) => {
+      return {
+        ...s,
+        inputTicker: ticker,
+        tickers: [...s.tickers, ticker],
+        byTicker: {
+          ...s.byTicker,
+          [ticker]: { ...(s.byTicker[ticker] ?? emptyItem), loading: true, error: '' },
+        },
+      };
+    });
+
+    await fetchTicker(ticker);
+  }
 
   return (
     <main className="min-h-screen">
       <header className="mx-auto max-w-screen-xl px-4 py-10">
-        <h1 className="text-2xl font-semibold">ASX Company Information</h1>
+        <h1 className="text-2xl font-semibold">ASX Stock Comparison</h1>
         <p className="mt-2 text-sm text-[#6c757d]">
-          Search for Australian Stock Exchange listed companies
+          Add up to {MAX_TICKERS} ASX tickers and compare key metrics side-by-side.
         </p>
       </header>
 
-      {!hasResults ? (
-        <section className="mx-auto flex max-w-screen-xl flex-col items-center justify-center px-4 pb-16 min-h-[60vh]">
-          <div className="w-full max-w-xl rounded-[8px] border border-[#e9ecef] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
-            <CompanySearch initialTicker={state.currentTicker} onSearch={handleSearch} loading={state.loading} />
+      <section className="mx-auto max-w-screen-xl px-4 pb-6">
+        <div className="rounded-[8px] border border-[#e9ecef] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
+          <CompanySearch
+            initialTicker={state.inputTicker}
+            onSearch={handleAddTicker}
+            loading={anyLoading}
+          />
 
-            <div className="mt-6" aria-busy={state.loading}>
-              {state.loading ? <LoadingSpinner text="Loading company information..." /> : null}
-              {state.error ? <p role="alert" className="mt-3 text-sm text-[#dc3545]">{state.error}</p> : null}
-            </div>
+          {uiError ? (
+            <p role="alert" className="mt-3 text-sm text-[#dc3545]">
+              {uiError}
+            </p>
+          ) : null}
+
+          <div className="mt-4">
+            <TickerPills tickers={state.tickers} onRemove={removeTicker} disabled={anyLoading} />
           </div>
-        </section>
-      ) : (
-        <section className="mx-auto max-w-screen-xl px-4 pb-16">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(350px,450px)_1fr]">
-            <div className="space-y-6">
-              <div className="rounded-[8px] border border-[#e9ecef] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.1)]">
-                <CompanySearch initialTicker={state.currentTicker} onSearch={handleSearch} loading={state.loading} />
-                <div className="mt-4">
-                  {state.loading ? <LoadingSpinner text="Loading company information..." /> : null}
-                  {state.error ? <p role="alert" className="mt-3 text-sm text-[#dc3545]">{state.error}</p> : null}
-                </div>
-              </div>
+        </div>
+      </section>
 
-              {/* Left column: Key statistics */}
-              {state.quoteData ? <KeyStatistics quoteData={state.quoteData} /> : null}
-            </div>
-
-            {/* Right column: Company info */}
-            {state.companyData ? <CompanyInfo companyData={state.companyData} /> : null}
-          </div>
-        </section>
-      )}
+      <section className="mx-auto max-w-screen-xl px-4 pb-16">
+        <ComparisonTable tickers={state.tickers} byTicker={state.byTicker} />
+      </section>
     </main>
   );
 }

@@ -22,3 +22,16 @@ export interface AppState {
   quoteData: QuoteData | null;
   currentTicker: string;
 }
+
+export type TickerItemState = {
+  loading: boolean;
+  error: string;
+  companyData: CompanyData | null;
+  quoteData: QuoteData | null;
+};
+
+export type ComparisonState = {
+  tickers: string[]; // e.g. ['CBA','BHP']
+  byTicker: Record<string, TickerItemState>;
+  inputTicker: string;
+};
