@@ -13,6 +13,18 @@ function formatCurrency(n: number) {
   }).format(n);
 }
 
+function formatLastUpdated(ts: number) {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(ts));
+}
+
 function isReady(item: TickerItemState) {
   return !item.loading && !item.error && item.companyData && item.quoteData;
 }
@@ -167,9 +179,21 @@ export default function ComparisonTable({
       render: (item) => formatCurrency(item.quoteData!.quote['52wk_high']),
     },
     {
+      key: 'lastUpdated',
+      label: 'Last Updated',
+      comparable: false,
+      getValue: () => null,
+      render: (item) =>
+        item.lastUpdated ? (
+          <span className="text-sm text-[#212529]">{formatLastUpdated(item.lastUpdated)}</span>
+        ) : (
+          <span className="text-sm text-[#6c757d]">—</span>
+        ),
+    },
+    {
       key: 'info',
       label: 'Company Info',
-      comparable: false, // ✅ 不参与高低标记
+      comparable: false,
       getValue: () => null,
       render: (item) => <span className="text-sm text-[#212529]">{item.companyData!.company_info}</span>,
     },

@@ -28,6 +28,7 @@ export type TickerItemState = {
   error: string;
   companyData: CompanyData | null;
   quoteData: QuoteData | null;
+  lastUpdated: number | null;
 };
 
 export type ComparisonState = {

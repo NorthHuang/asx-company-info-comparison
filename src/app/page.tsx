@@ -14,6 +14,7 @@ const emptyItem: TickerItemState = {
   error: '',
   companyData: null,
   quoteData: null,
+  lastUpdated: null,
 };
 
 const initialState: ComparisonState = {
@@ -53,6 +54,7 @@ export default function Page() {
 
     try {
       const { companyData, quoteData } = await getCompanyBundle(ticker);
+      const lastUpdated = Date.now();
       setState((s) => ({
         ...s,
         byTicker: {
@@ -62,6 +64,7 @@ export default function Page() {
             error: '',
             companyData,
             quoteData,
+            lastUpdated,
           },
         },
       }));
@@ -75,10 +78,17 @@ export default function Page() {
             error: mapErrorToMessage(err, ticker),
             companyData: null,
             quoteData: null,
+            lastUpdated: null,
           },
         },
       }));
     }
+  }
+
+  async function handleRefreshAll() {
+    if (state.tickers.length === 0) return;
+    setUiError('');
+    await Promise.all(state.tickers.map((ticker) => fetchTicker(ticker)));
   }
 
   async function handleAddTicker(ticker: string) {
@@ -134,6 +144,17 @@ export default function Page() {
 
           <div className="mt-4">
             <TickerPills tickers={state.tickers} onRemove={removeTicker} disabled={anyLoading} />
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={handleRefreshAll}
+              disabled={anyLoading || state.tickers.length === 0}
+              className="rounded-[8px] border border-[#0d6efd] bg-[#0d6efd] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0b5ed7] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {anyLoading ? 'Refreshing...' : 'Refresh All'}
+            </button>
           </div>
         </div>
       </section>
